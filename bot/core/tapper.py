@@ -447,7 +447,7 @@ class Tapper:
                     return result['code']
 
             except Exception as e:
-                logger.warning(f"{self.session_name} | Error while solving captcha")
+                logger.warning(f"{self.session_name} | Error while solving captcha | Error: {e}")
                 await asyncio.sleep(delay=3)
                 return None
 
