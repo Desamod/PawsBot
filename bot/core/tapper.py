@@ -425,9 +425,10 @@ class Tapper:
 
     async def solve_captcha(self, http_client: cloudscraper.CloudScraper):
         solver = TwoCaptcha(settings.CAPTCHA_API_KEY)
-        for attempt in range(3):
+        max_attempts = 5
+        for attempt in range(max_attempts):
             await asyncio.sleep(delay=randint(5, 10))
-            logger.info(f"{self.session_name} | Attempt to solve CAPTCHA ({attempt + 1}/3)")
+            logger.info(f"{self.session_name} | Attempt to solve CAPTCHA ({attempt + 1}/{max_attempts})")
             try:
                 balance = solver.balance()
                 if balance < 0.1:
@@ -447,6 +448,9 @@ class Tapper:
                     return result['code']
 
             except Exception as e:
+                if "ERROR_CAPTCHA_UNSOLVABLE" in str(e):
+                    logger.warning(f"{self.session_name} | CAPTCHA doest solved. Try again...")
+                    continue
                 logger.warning(f"{self.session_name} | Error while solving captcha | Error: {e}")
                 await asyncio.sleep(delay=3)
                 return None
