@@ -13,8 +13,8 @@ from bot.config import settings
 from twocaptcha import TwoCaptcha
 from bot.utils import logger
 from bot.exceptions import InvalidSession
-from .agents import get_sec_ch_ua, is_latest_tg_version
-from .headers import headers, web_headers
+from .agents import get_sec_ch_ua
+from .headers import headers
 
 from random import randint
 
@@ -104,12 +104,8 @@ class Tapper:
 
     async def perform_web_task(self, http_client: cloudscraper.CloudScraper, tg_web_data: str, task_id: str):
         try:
-            app_headers = http_client.headers
-            http_client.headers = web_headers.copy()
-            http_client.headers['Authorization'] = app_headers['Authorization']
             response = http_client.post(f'https://api.paws.community/v1/quests/completed',
                                         json={"questId": task_id}, timeout=60)
-            http_client.headers = app_headers
             response.raise_for_status()
             response_json = response.json()
             return response_json.get('success', False) and response_json.get('data', False)
@@ -305,12 +301,8 @@ class Tapper:
                 'code': "3CLJCb5uvE8n",
                 'questId': task_id
             }
-            app_headers = http_client.headers
-            http_client.headers = web_headers.copy()
-            http_client.headers['Authorization'] = app_headers['Authorization']
             response = http_client.post(f'https://api.paws.community/v1/quests/custom',
                                         json=payload, timeout=60)
-            http_client.headers = app_headers
             response.raise_for_status()
             response_json = response.json()
             status = response_json.get('success', False) and response_json['data'].get('completed', False)
@@ -472,11 +464,7 @@ class Tapper:
 
     async def check_eligibility(self, http_client: cloudscraper.CloudScraper):
         try:
-            app_headers = http_client.headers
-            http_client.headers = web_headers.copy()
-            http_client.headers['Authorization'] = app_headers['Authorization']
             response = http_client.get(f'https://api.paws.community/v1/eligibility')
-            http_client.headers = app_headers
             response.raise_for_status()
             response_json = response.json()
             data = response_json.get('data')
@@ -536,16 +524,6 @@ class Tapper:
                     if tg_web_data is None:
                         continue
 
-                    if not is_valid_endpoints():
-                        logger.warning("Detected api change! Stopped the bot for safety | "
-                                       "Contact me for update: <lc>https://t.me/DesQwertys</lc>")
-                        sys.exit()
-                    else:
-                        logger.info(f"{self.session_name} | Antidetect: endpoints successfully checked")
-
-                    #if await self.send_plausible_event(http_client=scraper, web_data="https://app.paws.community/") is False:
-                    #   await asyncio.sleep(randint(5, 10))
-                    #   continue
                     auth_data = await self.login(http_client=scraper, tg_web_data=tg_web_data)
                     auth_token = auth_data[0]
                     if auth_token is None:
@@ -568,37 +546,20 @@ class Tapper:
                     self.is_grinch = user_info.get('grinchRemoved', None)
                     self.wallet = wallet
                     self.solana_wallet = solana_wallet
-                    is_wallet_connected = wallet is not None and len(wallet) > 0
-                    is_solana_wallet_connected = solana_wallet is not None and len(solana_wallet) > 0
                     is_ton_wallet_verified = ton_web_wallet_proof is not None and len(ton_web_wallet_proof) > 0
                     is_sol_wallet_verified = sol_web_wallet_proof is not None and len(sol_web_wallet_proof) > 0
                     self.ton_proof = is_ton_wallet_verified
                     self.sol_proof = is_sol_wallet_verified
-                    wallet_status = f"Ton Wallet (app): <y>{wallet}</y>" if is_wallet_connected \
-                        else 'Ton wallet not connected in app'
-                    wallet_status_web = f"Ton Wallet web proof: <y>{ton_web_wallet_proof}</y>" if is_ton_wallet_verified \
+                    ton_wallet_status_web = f"Ton Wallet web proof: <y>{ton_web_wallet_proof}</y>" if is_ton_wallet_verified \
                         else 'Ton wallet not connected in web'
-                    #solana_wallet_status = f"Solana wallet (app): <y>{solana_wallet}</y>" if is_solana_wallet_connected \
-                    #    else 'Solana wallet not connected in app'
                     solana_wallet_status_web = f"Solana wallet web proof: <y>{sol_web_wallet_proof}</y>" \
                         if is_sol_wallet_verified else 'Solana wallet not connected in web'
                     logger.info(f"{self.session_name} | Balance: <e>{balance}</e> PAWS")
-                    logger.info(f"{self.session_name} | {wallet_status}")
-                    logger.info(f"{self.session_name} | {wallet_status_web}")
-                    #logger.info(f"{self.session_name} | {solana_wallet_status}")
+                    logger.info(f"{self.session_name} | {ton_wallet_status_web}")
                     logger.info(f"{self.session_name} | {solana_wallet_status_web}")
 
-                    #await self.check_wallet_status(scraper=scraper, wallet_type='Ton',
-                    #                               is_connected=is_wallet_connected,
-                    #                               need_to_connect=settings.CONNECT_TON_WALLET,
-                    #                               need_to_disconnect=settings.DISCONNECT_TON_WALLET)
-                    #await self.check_wallet_status(scraper=scraper, wallet_type='Solana',
-                    #                               is_connected=is_solana_wallet_connected,
-                    #                               need_to_connect=settings.CONNECT_SOLANA_WALLET,
-                    #                               need_to_disconnect=settings.DISCONNECT_SOLANA_WALLET)
-
                     if settings.VERIFY_WALLETS:
-                        if self.wallet and not is_ton_wallet_verified and settings.CONNECT_TON_WALLET:
+                        if not is_ton_wallet_verified and settings.CONNECT_TON_WALLET:
                             await asyncio.sleep(delay=randint(5, 10))
                             await verify_ton_wallet(session_name=self.session_name, scraper=scraper, wallet=self.wallet)
                         if not is_sol_wallet_verified and settings.CONNECT_SOLANA_WALLET:
@@ -606,19 +567,9 @@ class Tapper:
                             await verify_solana_wallet(session_name=self.session_name,
                                                        scraper=scraper, wallet=self.solana_wallet)
 
-                    if settings.AUTO_TASK:
-                        await asyncio.sleep(delay=randint(5, 10))
-                        await self.processing_tasks(http_client=scraper, tg_web_data=tg_web_data)
-                        logger.info(f"{self.session_name} | All available tasks completed")
-
                     if settings.CHECK_ELIGIBILITY:
                         await asyncio.sleep(delay=randint(5, 10))
                         await self.check_eligibility(http_client=scraper)
-
-                if settings.CLEAR_TG_NAME and '🐾' in self.tg_session.name:
-                    logger.info(f"{self.session_name} | Removing 🐾 from name..")
-                    nickname = self.tg_session.name.replace('🐾', '')
-                    await self.tg_session.change_tg_nickname(name=nickname)
 
                 logger.info(f"{self.session_name} | Sleep <y>{round(sleep_time / 60, 1)}</y> min")
                 await asyncio.sleep(delay=sleep_time)

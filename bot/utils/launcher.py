@@ -84,8 +84,8 @@ async def run_tasks(accounts: [Any, Any, list]):
     tasks = []
     manager = SessionManager(api_id=settings.API_ID,
                              api_hash=settings.API_HASH,
-                             peer='PAWSOG_bot',
-                             short_name='PAWS',
+                             peer='VerifierP_bot',
+                             short_name='login',
                              start_param=settings.REF_ID,
                              check_first_run=True)
 
