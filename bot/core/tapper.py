@@ -470,6 +470,8 @@ class Tapper:
             data = response_json.get('data')
             logger.info(f'{self.session_name} | Checking eligibility for airdrop..')
             activity_check = False
+            is_eligible = True
+            quests_passed = False
             for criteria in data:
                 criteria_name = criteria['criteriaName']
                 completed = criteria['meetsCriteria']
@@ -485,11 +487,35 @@ class Tapper:
 
                 if criteria_name == 'activityCheck' and user_value:
                     activity_check = True
+                elif criteria_name == 'completedQuestsCounter':
+                    quests_passed = completed
+
+                if criteria_type == 'mandatory' and not completed:
+                    if criteria_name == 'userReferrals' and not quests_passed:
+                        is_eligible = False
 
             if settings.SOLVE_CAPTCHA and not activity_check:
                 result = await self.pybass_activity_checker(http_client)
                 if result:
                     logger.info(f'{self.session_name} | Successfully passed activity checker!')
+
+            return is_eligible
+
+        except Exception as error:
+            logger.error(f"{self.session_name} | Unknown error when checking eligibility: {error}")
+            await asyncio.sleep(delay=3)
+            return False
+
+    async def get_drop_info(self, http_client: cloudscraper.CloudScraper):
+        try:
+            response = http_client.get(f'https://api.paws.community/v1/user/drop/telegram')
+            response.raise_for_status()
+            response_json = response.json()
+            data = response_json.get('data')
+            if data['isBot']:
+                logger.warning(f'{self.session_name} | The account was marked as a bot')
+            else:
+                logger.info(f'{self.session_name} | Your total allocation: <g>{round(data["dropAmount"], 2)}</g> $PAWS')
 
         except Exception as error:
             logger.error(f"{self.session_name} | Unknown error when checking eligibility: {error}")
@@ -569,7 +595,11 @@ class Tapper:
 
                     if settings.CHECK_ELIGIBILITY:
                         await asyncio.sleep(delay=randint(5, 10))
-                        await self.check_eligibility(http_client=scraper)
+                        result = await self.check_eligibility(http_client=scraper)
+                        if result:
+                            await self.get_drop_info(http_client=scraper)
+                        else:
+                            logger.warning(f'{self.session_name} | Not eligible for drop')
 
                 logger.info(f"{self.session_name} | Sleep <y>{round(sleep_time / 60, 1)}</y> min")
                 await asyncio.sleep(delay=sleep_time)
