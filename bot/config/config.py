@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     SLEEP_TIME: list[int] = [7200, 10800]
     START_DELAY: list[int] = [5, 25]
-    AUTO_TASK: bool = True
+    AUTO_TASK: bool = False
     JOIN_TG_CHANNELS: bool = False
     REF_ID: str = 'idqtVYZG'
     DISABLED_TASKS: list[str] = ['boost', 'emoji']
@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     CLEAR_TG_NAME: bool = False
     CHECK_ELIGIBILITY: bool = True
     SOLVE_CAPTCHA: bool = False
+    CONNECT_EXCHANGE: bool = False
     CAPTCHA_API_KEY: str = ""
 
 

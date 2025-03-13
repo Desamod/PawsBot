@@ -1,0 +1,14 @@
+[
+  {
+    "session_name": "name_example_one",
+    "name": "BITGET",
+    "uid": "00000001",
+    "address": "your_deposit_address"
+  },
+  {
+    "session_name": "name_example_two",
+    "name": "BYBIT",
+    "uid": "00000002",
+    "address": "your_deposit_address"
+  }
+]

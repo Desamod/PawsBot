@@ -19,6 +19,7 @@ from .headers import headers
 from random import randint
 
 from ..utils.api_checker import is_valid_endpoints
+from ..utils.file_manager import load_from_json
 from ..utils.tg_manager.TGSession import TGSession
 from bot.core.WalletManager.WalletManager import get_valid_wallet, set_wallet, verify_ton_wallet
 from bot.core.WalletManager.SolanaManager import get_solana_valid_wallet, set_solana_wallet, verify_solana_wallet
@@ -514,13 +515,44 @@ class Tapper:
             data = response_json.get('data')
             if data['isBot']:
                 logger.warning(f'{self.session_name} | The account was marked as a bot')
+                return None
             else:
                 logger.info(f'{self.session_name} | Your total allocation: <g>{round(data["dropAmount"], 2)}</g> $PAWS')
+                return data
 
         except Exception as error:
             logger.error(f"{self.session_name} | Unknown error when checking eligibility: {error}")
             await asyncio.sleep(delay=3)
             return None
+
+    async def connect_exchange_data(self, http_client: cloudscraper.CloudScraper, exchange_data):
+        try:
+            payload = {
+                "depositAddress": exchange_data['address'],
+                "name": exchange_data['name'],
+                "uid": exchange_data['uid']
+            }
+            response = http_client.post(f'https://api.paws.community/v1/user/drop/telegram/exchange', json=payload)
+            response.raise_for_status()
+            response_json = response.json()
+            data = response_json.get('data')
+            if data['status'] != 'EXCHANGE':
+                logger.warning(f'{self.session_name} | Error while connecting exchange data: {exchange_data}')
+            else:
+                logger.success(f'{self.session_name} | Successfully connected withdrawal method | '
+                               f'Exchange: <e>{exchange_data["name"]}</e> | Address: <y>{exchange_data["address"]}</y>')
+
+        except Exception as error:
+            logger.error(f"{self.session_name} | Unknown error when connecting exchange: {error}")
+            await asyncio.sleep(delay=3)
+
+    def get_user_exchange_data(self):
+        exchange_data = load_from_json('exchange_data.json')
+        user_data = [data for data in exchange_data if data['session_name'] == self.session_name]
+        if not user_data:
+            logger.warning(f'{self.session_name} | No user exchange data found for session: {self.session_name}')
+            return None
+        return user_data[0]
 
     async def run(self, user_agent: str, proxy: str | None) -> None:
         access_token_created_time = 0
@@ -597,7 +629,20 @@ class Tapper:
                         await asyncio.sleep(delay=randint(5, 10))
                         result = await self.check_eligibility(http_client=scraper)
                         if result:
-                            await self.get_drop_info(http_client=scraper)
+                            drop_info = await self.get_drop_info(http_client=scraper)
+                            if drop_info is not None:
+                                if drop_info['status'] == 'NOT_CLAIMED':
+                                    exchange_data = self.get_user_exchange_data()
+                                    if exchange_data is not None and settings.CONNECT_EXCHANGE:
+                                        await asyncio.sleep(delay=randint(5, 10))
+                                        await self.connect_exchange_data(scraper, exchange_data)
+                                elif drop_info['status'] == 'EXCHANGE':
+                                    exchange_data = drop_info['exchange']
+                                    exchange_name = exchange_data['name']
+                                    exchange_addr = exchange_data['depositAddress']
+                                    logger.info(f"{self.session_name} | Exchange already connected "
+                                                f"| Name: <e>{exchange_name}</e> | Address: <y>{exchange_addr}</y>")
+
                         else:
                             logger.warning(f'{self.session_name} | Not eligible for drop')
 
