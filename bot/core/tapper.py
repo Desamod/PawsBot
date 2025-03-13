@@ -58,7 +58,10 @@ class Tapper:
 
     async def login(self, http_client: cloudscraper.CloudScraper, tg_web_data: str, retry=0):
         try:
-            payload = {'data': tg_web_data}
+            payload = {
+                'bot': 'Free_PWS_Bot',
+                'data': tg_web_data
+            }
             if self.tg_session.start_param:
                 payload['referralCode'] = self.tg_session.start_param
 
